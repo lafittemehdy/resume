@@ -69,3 +69,81 @@ P_f = min(1, 1 - (1 - P_e) * (1 - E_u) * T_eu)
 
 S_au = max(0, S_n * (1 - P_f))
 Ω = max(0, min(1, S_au * exp(-γ * d_f) * exp(-δ * r_f)))
+
+X = {X₀, X₁, X₂, ...}
+Σ = {Σ₀, Σ₁, Σ₂, Σ₃, Σ₄}
+κ_T, κ_W, ζ, Y_v, ρ, σ, ε, ν, ξ, τ_m, k_m, k_t, S_thresh = constants
+α₁, α₂, α₃, β₁, β₂, β₃, γ₁, γ₂, δ₁, δ₂, ε₁, ε₂ = constants
+
+Φ(y) = max(0, min(1, Φ(y-1) - (α₁ * T_L(y-1) / max(Λ_m(y-1), ε)) + (α₂ * Λ_m(y-1) * (1-Φ(y-1)))))
+Φ(0) = 1
+
+Ψ(y) = max(0, Ψ(y-1) - β₁ * T_L(y-1) * (1 + Δ(y-1)))
+Ψ(0) = Ψ_max
+
+R(y) = max(0, min(R_max, R(y-1) - δ₁*Λ_s(y-1)*(1+Δ(y-1)) + δ₂*(R_max-R(y-1))/R_max - N(y-1)*ε₁))
+R(0) = R_max
+
+Θ(y) = max(0, Θ(y-1) * (1 - Δ(y-1) * β₂) * (R(y)/R_max))
+Θ(0) = 1
+
+κ_T_eff(y) = κ_T * Λ_s(y-1) * (Ψ(y-1)/Ψ_max) * Φ(y-1) * Θ(y-1)
+Λ_s(y) = max(0, Λ_s(y-1) * (1 + κ_T_eff(y)))
+Λ_s(0) = 1
+
+B(y) = max(0, B(y-1) + ε₂ * (|X(y-1)| - |X(y-2)|) * κ_T_eff(y))
+B(0) = 0
+
+T_L(y) = max(0, T_L(y-1) * (1 + κ_T_eff(y)) * (1 + B(y-1)))
+T_L(0) = 1
+
+L_mem(y) = L_mem(y-1) * exp(-1/τ_m) + N(y-1)
+L_mem(0) = 0
+ζ_eff(y) = ζ * L_mem(y)
+Λ_m(y) = max(0, Λ_m(y-1) * (1 + κ_W * (1-Δ(y-1)) * Θ(y-1)) + ζ_eff(y) * N(y-1) * Φ(y-1))
+Λ_m(0) = 1
+
+R_d(y) = (Λ_s(y) * T_L(y)) / (1 + Λ_m(y))
+P_X_new(y) = min(1, 1 - exp(-ν * R_d(y)))
+X(y) = X(y-1) ∪ {X_new if rand() < P_X_new(y)}
+
+Δ(y) = max(0, min(1, Δ(y-1) + β₂ * |X(y)| * (T_L(y)/max(Λ_m(y), ε)) - β₃ * Λ_m(y) * Θ(y)))
+Δ(0) = Δ₀
+
+M_y = T_L(y) / max(Λ_m(y), ε)
+Ω_i_base = Ω(i) for i ∈ X(y)
+Ω_i_eff(y) = min(1, Ω_i_base * M_y * (1 + Δ(y)))
+P₀(y) = 1 - ∏_{i∈X(y)} (1 - Ω_i_eff(y))
+
+N(y) = P₀(y) * (1 - 1/(1 + exp(-5 * (Λ_m(y) - T_L(y)))))
+
+R_s(y) = max(ε, R_s(y-1) * (1 - ρ * T_L(y) * (1+Δ(y)) * (1+B(y))))
+R_s(0) = R_s_max
+P₁(y) = (1 - P₀(y)) * (1 - exp(-σ / R_s(y)))
+
+S_c(y) = (Λ_m(y) / max(T_L(y), ε)) * Φ(y)
+P₂(y) = (1 - P₀(y)) * (1 - P₁(y)) * (1 / (1 + exp(-k_m * (S_c(y) - S_thresh))))
+
+F_h = |X(y)| * T_L(y) * (1+Δ(y))
+F_w = Λ_m(y) * Φ(y) * Θ(y)
+P₃(y) = (1 - P₀(y)) * (1 - P₁(y)) * (1 - P₂(y)) * (1 / (1 + exp(-k_t * (F_w - F_h))))
+
+P₄(y) = max(0, 1 - P₀(y) - P₁(y) - P₂(y) - P₃(y))
+
+Σ_c(y) = Σ_c(y-1)
+r = rand()
+if r < P₀(y): 
+    Σ_c(y) = Σ₀
+else if r < P₀(y) + P₁(y):
+    Σ_c(y) = Σ₁
+    T_L(y) = γ₁ * T_L(y)
+    Λ_s(y) = γ₁ * Λ_s(y)
+    Λ_m(y) = γ₂ * Λ_m(y)
+else if r < P₀(y) + P₁(y) + P₂(y): 
+    Σ_c(y) = Σ₂
+else if r < P₀(y) + P₁(y) + P₂(y) + P₃(y): 
+    Σ_c(y) = Σ₃
+else: 
+    Σ_c(y) = Σ₄
+
+Π(S) = Count(Σ_c(Y_v) == S) / N_sim for S ∈ Σ
